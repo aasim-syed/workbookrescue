@@ -8,6 +8,7 @@ import { parseUpload, sha256 } from "../_lib/core/parse.js";
 import { LIMITS } from "../_lib/core/types.js";
 import { ingest } from "../_lib/ingest.js";
 import { zipSync } from "fflate";
+import { assertFileQuota, QUOTAS, rateLimit } from "../_lib/limits.js";
 import { deleteOriginal, downloadUrl, getOriginal, storageEnabled } from "../_lib/storage.js";
 import { rebuildFile } from "../_lib/rebuild.js";
 import { allArtifacts, audit, latestArtifacts, loadContext, touchProject } from "../_lib/store.js";
@@ -28,6 +29,8 @@ app.get("/:projectId/files", async (c) => {
 /** Raw file bytes in the body, name in ?filename=. Parsed read-only; macros are never executed. */
 app.post("/:projectId/files", async (c) => {
   const { db, p, user } = await project(c);
+  await rateLimit(db, c, "upload-org", user.orgId, (user.isGuest ? QUOTAS.guest : QUOTAS.user).uploadsPerHour, 3600);
+  await assertFileQuota(db, user, p.id);
   const filename = (c.req.query("filename") ?? "").split(/[\\/]/).pop()!.trim();
   if (!filename || filename.length > 200) throw new HTTPException(400, { message: "filename query parameter is required" });
   const declared = Number(c.req.header("content-length") ?? 0);

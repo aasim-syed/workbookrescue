@@ -6,6 +6,7 @@ import { body, database, project, type Env } from "../_lib/http.js";
 import { audit, latestArtifacts, loadContext, projectUnknowns } from "../_lib/store.js";
 import { addDemoShipping, seedDemo, simulateLaborChange } from "../_lib/seed.js";
 import { buildExport } from "../_lib/export.js";
+import { assertProjectQuota, rateLimit } from "../_lib/limits.js";
 import { deletePrefix, storageEnabled } from "../_lib/storage.js";
 
 const { projects, artifacts, auditEvents } = schema;
@@ -34,6 +35,7 @@ app.post("/", async (c) => {
   const db = await database();
   const user = c.get("user");
   const v = await body(c, input);
+  await assertProjectQuota(db, user);
   const [p] = await db.insert(projects).values({ organizationId: user.orgId, name: v.name, description: v.description ?? "" }).returning();
   await audit(db, user, { projectId: p.id, action: "project.create", objectType: "project", objectId: p.id, summary: `Created project "${p.name}"` });
   return c.json({ project: p }, 201);
@@ -42,6 +44,7 @@ app.post("/", async (c) => {
 /** Opens (creating if needed) the walkthrough project in this workspace. */
 app.post("/demo", async (c) => {
   const db = await database();
+  await rateLimit(db, c, "demo-org", c.get("user").orgId, 10, 3600);
   return c.json({ projectId: await seedDemo(db, c.get("user")) });
 });
 

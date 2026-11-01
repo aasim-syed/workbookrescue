@@ -5,7 +5,7 @@ import { getDb, type DB } from "./db/client.js";
 import type { AuthUser } from "./auth.js";
 import { ownProject } from "./store.js";
 
-export type Env = { Variables: { user: AuthUser } };
+export type Env = { Variables: { user: AuthUser; requestId: string } };
 
 export async function body<T>(c: Context, schema: ZodType<T>): Promise<T> {
   let raw: unknown;

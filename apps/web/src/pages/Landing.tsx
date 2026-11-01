@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { TLink as Link, useGo } from "../components/Transition";
 import Cursor from "../components/Cursor";
 import SmoothScroll from "../components/SmoothScroll";
+import { toast } from "sonner";
 import { startDemo } from "../lib/demo";
 import { useMe, type Status } from "../lib/api";
 import GridScene from "../components/GridScene";
@@ -166,7 +167,14 @@ function useTryDemo() {
     busy,
     start: async () => {
       setBusy(true);
-      try { go(await startDemo(qc)); } finally { setTimeout(() => setBusy(false), 1500); }
+      try {
+        go(await startDemo(qc));
+      } catch (e) {
+        toast.error((e as Error).message);
+        setBusy(false);
+        return;
+      }
+      setTimeout(() => setBusy(false), 1500);
     },
   };
 }

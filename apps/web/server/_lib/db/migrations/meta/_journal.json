@@ -8,6 +8,13 @@
       "when": 1793515943425,
       "tag": "0000_swift_tombstone",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793520829102,
+      "tag": "0001_open_daredevil",
+      "breakpoints": true
     }
   ]
 }

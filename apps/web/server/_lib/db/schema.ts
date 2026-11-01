@@ -1,4 +1,4 @@
-import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import type { ExternalLink, Warning, CachedValue } from "../core/types.js";
 
 const id = () => uuid("id").primaryKey().defaultRandom();
@@ -158,4 +158,16 @@ export const auditEvents = pgTable(
     createdAt: created(),
   },
   (t) => [index("audit_project_idx").on(t.projectId, t.createdAt)],
+);
+
+/** Fixed-window counters shared by every serverless instance. Rows older than a couple of days are purged by maintenance. */
+export const rateLimits = pgTable(
+  "rate_limits",
+  {
+    key: text("key").notNull(),
+    bucket: bigint("bucket", { mode: "number" }).notNull(),
+    count: integer("count").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.key, t.bucket] })],
 );

@@ -7,6 +7,7 @@ import { currentUser, endSession, hashPassword, startSession, verifyPassword, ty
 import { schema } from "../_lib/db/client.js";
 import { body, database, type Env } from "../_lib/http.js";
 import { seedDemo } from "../_lib/seed.js";
+import { clientIp, rateLimit } from "../_lib/limits.js";
 
 const { users, organizations } = schema;
 const creds = z.object({ email: z.string().email().max(200).transform((s) => s.toLowerCase()), password: z.string().min(8).max(200) });
@@ -23,6 +24,7 @@ app.get("/me", async (c) => {
 app.post("/signup", async (c) => {
   const input = await body(c, signup);
   const db = await database();
+  await rateLimit(db, c, "signup-ip", clientIp(c), 10, 3600);
   const [exists] = await db.select({ id: users.id }).from(users).where(eq(users.email, input.email));
   if (exists) throw new HTTPException(409, { message: "An account with this email already exists" });
   const [org] = await db.insert(organizations).values({ name: `${input.name}'s workspace` }).returning();
@@ -34,6 +36,9 @@ app.post("/signup", async (c) => {
 app.post("/login", async (c) => {
   const input = await body(c, creds);
   const db = await database();
+  // per-IP to slow credential stuffing, per-email so one account can't be hammered from many IPs
+  await rateLimit(db, c, "login-ip", clientIp(c), 30, 600);
+  await rateLimit(db, c, "login-email", input.email, 10, 600);
   const [u] = await db.select().from(users).where(eq(users.email, input.email));
   // same response for unknown email and wrong password
   if (!u || !(await verifyPassword(input.password, u.passwordHash))) throw new HTTPException(401, { message: "Wrong email or password" });
@@ -44,6 +49,8 @@ app.post("/login", async (c) => {
 /** One click into a private sandbox workspace with the walkthrough project already loaded. */
 app.post("/guest", async (c) => {
   const db = await database();
+  await rateLimit(db, c, "guest-ip", clientIp(c), 5, 3600);
+  await rateLimit(db, c, "guest-all", "global", 300, 3600); // backstop if the abuse is spread over many IPs
   const tag = randomBytes(5).toString("hex");
   const [org] = await db.insert(organizations).values({ name: "Guest workspace" }).returning();
   const [u] = await db.insert(users).values({ organizationId: org.id, email: `guest-${tag}@guest.local`, name: "Guest", isGuest: true, passwordHash: await hashPassword(randomBytes(16).toString("hex")) }).returning();

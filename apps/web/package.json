@@ -12,7 +12,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --env-file-if-exists=../../.env.local scripts/migrate.ts",
     "fixtures": "tsx scripts/make-fixtures.ts",
-    "dev:neon": "concurrently -k -n api,web -c blue,green \"tsx watch --env-file=../../.env.local server/_dev.ts\" \"vite\""
+    "dev:neon": "concurrently -k -n api,web -c blue,green \"tsx watch --env-file=../../.env.local server/_dev.ts\" \"vite\"",
+    "maintenance": "tsx --env-file-if-exists=../../.env.local scripts/maintenance.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1161.0",
