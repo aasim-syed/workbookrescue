@@ -1,12 +1,5 @@
-import { boolean, customType, index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import type { ExternalLink, Warning, CachedValue } from "../core/types.js";
-
-// Neon's HTTP driver takes bytea as a hex string; PGlite (local dev) takes raw bytes.
-const bytea = customType<{ data: Uint8Array; driverData: string | Uint8Array }>({
-  dataType: () => "bytea",
-  toDriver: (v) => (process.env.DATABASE_URL ? "\\x" + Buffer.from(v).toString("hex") : v),
-  fromDriver: (v) => (typeof v === "string" ? new Uint8Array(Buffer.from(v.replace(/^\\x/, ""), "hex")) : new Uint8Array(v)),
-});
 
 const id = () => uuid("id").primaryKey().defaultRandom();
 const created = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -55,16 +48,13 @@ export const artifacts = pgTable(
     externalLinks: jsonb("external_links").$type<ExternalLink[]>().notNull(),
     warnings: jsonb("warnings").$type<Warning[]>().notNull(),
     cellCount: integer("cell_count").notNull(),
+    /** Key of the original file in Neon Object Storage. Null for synthetic demo data. */
+    storageKey: text("storage_key"),
     uploadedBy: uuid("uploaded_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: created(),
   },
   (t) => [unique("artifacts_project_file_hash").on(t.projectId, t.filename, t.sha256), index("artifacts_project_idx").on(t.projectId)],
 );
-
-export const artifactBlobs = pgTable("artifact_blobs", {
-  artifactId: uuid("artifact_id").primaryKey().references(() => artifacts.id, { onDelete: "cascade" }),
-  content: bytea("content").notNull(),
-});
 
 export const cells = pgTable(
   "cells",

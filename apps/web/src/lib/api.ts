@@ -9,7 +9,7 @@ export interface Unknown { code: string; status: Status; message: string; artifa
 export interface Warning { code: string; severity: string; message: string }
 export interface FileRow {
   id: string; filename: string; format: string; sha256: string; sizeBytes: number; version: number;
-  sheets: { name: string; hidden: boolean }[]; warnings: Warning[]; cellCount: number; createdAt: string; isLatest: boolean;
+  sheets: { name: string; hidden: boolean }[]; warnings: Warning[]; cellCount: number; createdAt: string; isLatest: boolean; hasOriginal: boolean;
 }
 export interface GNode {
   id: string; kind: "cell" | "range" | "file" | "unresolved"; role: string; artifactId: string | null; filename: string;

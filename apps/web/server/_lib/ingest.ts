@@ -3,8 +3,9 @@ import { schema, type DB } from "./db/client.js";
 import type { AuthUser } from "./auth.js";
 import type { ParsedFile } from "./core/types.js";
 import { audit, touchProject } from "./store.js";
+import { deleteOriginal, objectKey, putOriginal, storageEnabled } from "./storage.js";
 
-const { artifacts, artifactBlobs, cells } = schema;
+const { artifacts, cells } = schema;
 const CHUNK = 1500;
 
 export async function ingest(
@@ -30,12 +31,18 @@ export async function ingest(
     .returning();
 
   try {
-    if (bytes) await db.insert(artifactBlobs).values({ artifactId: artifact.id, content: bytes });
+    if (bytes && storageEnabled()) {
+      const key = objectKey(projectId, artifact.id, filename);
+      await putOriginal(key, bytes, parsed.format === "csv" ? "text/csv" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      await db.update(artifacts).set({ storageKey: key }).where(eq(artifacts.id, artifact.id));
+      artifact.storageKey = key;
+    }
     for (let i = 0; i < parsed.cells.length; i += CHUNK) {
       await db.insert(cells).values(parsed.cells.slice(i, i + CHUNK).map((c) => ({ artifactId: artifact.id, sheet: c.sheet, address: c.address, formula: c.formula, cached: c.cached })));
     }
   } catch (e) {
     await db.delete(artifacts).where(eq(artifacts.id, artifact.id)); // never leave a half-imported file behind
+    if (artifact.storageKey || storageEnabled()) await deleteOriginal(objectKey(projectId, artifact.id, filename)).catch(() => {});
     throw e;
   }
   await audit(db, user, {

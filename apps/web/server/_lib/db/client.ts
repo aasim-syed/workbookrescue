@@ -1,8 +1,8 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { neon } from "@neondatabase/serverless";
-import { drizzle as neonDrizzle } from "drizzle-orm/neon-http";
+import { drizzle as pgDrizzle } from "drizzle-orm/node-postgres";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
+import pg from "pg";
 import * as schema from "./schema.js";
 
 export type DB = PgDatabase<PgQueryResultHKT, typeof schema>;
@@ -12,7 +12,7 @@ export const migrationsFolder = path.join(path.dirname(fileURLToPath(import.meta
 
 let cached: Promise<DB> | undefined;
 
-/** Neon over HTTP when DATABASE_URL is set; otherwise an in-process Postgres (PGlite) for local development. */
+/** Neon (pooled node-postgres) when DATABASE_URL is set; otherwise an in-process Postgres (PGlite) for local development. */
 export function getDb(): Promise<DB> {
   cached ??= connect();
   return cached;
@@ -20,7 +20,15 @@ export function getDb(): Promise<DB> {
 
 async function connect(): Promise<DB> {
   const url = process.env.DATABASE_URL;
-  if (url) return neonDrizzle(neon(url), { schema }) as unknown as DB;
+  if (url) {
+    const pool = new pg.Pool({ connectionString: url, max: 5 });
+    if (process.env.VERCEL) {
+      // Fluid compute: lets Vercel close idle pool clients before the instance is suspended
+      const { attachDatabasePool } = await import("@vercel/functions");
+      attachDatabasePool(pool);
+    }
+    return pgDrizzle(pool, { schema }) as unknown as DB;
+  }
 
   if (process.env.VERCEL) throw new Error("DATABASE_URL is not set");
   const { PGlite } = await import("@electric-sql/pglite");

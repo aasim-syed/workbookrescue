@@ -8,5 +8,9 @@
     "dev": "npm run dev -w apps/web",
     "build": "npm run build -w apps/web",
     "test": "npm run test -w apps/web"
+  },
+  "dependencies": {
+    "@neon/config": "^1.10.0",
+    "@neon/env": "^1.6.8"
   }
 }

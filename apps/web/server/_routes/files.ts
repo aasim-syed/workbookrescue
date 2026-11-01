@@ -7,6 +7,7 @@ import { body, project, type Env } from "../_lib/http.js";
 import { parseUpload, sha256 } from "../_lib/core/parse.js";
 import { LIMITS } from "../_lib/core/types.js";
 import { ingest } from "../_lib/ingest.js";
+import { deleteOriginal, downloadUrl, storageEnabled } from "../_lib/storage.js";
 import { allArtifacts, audit, latestArtifacts, loadContext, touchProject } from "../_lib/store.js";
 
 const { artifacts, mappings } = schema;
@@ -17,7 +18,7 @@ app.get("/:projectId/files", async (c) => {
   const all = await allArtifacts(db, p.id);
   const latest = new Set((await latestArtifacts(db, p.id)).map((a) => a.id));
   return c.json({
-    files: all.map((a) => ({ ...a, isLatest: latest.has(a.id) })),
+    files: all.map(({ storageKey, ...a }) => ({ ...a, hasOriginal: !!storageKey, isLatest: latest.has(a.id) })),
     limits: { maxFileBytes: LIMITS.maxFileBytes },
   });
 });
@@ -40,9 +41,20 @@ app.delete("/:projectId/files/:artifactId", async (c) => {
   const [a] = await db.select().from(artifacts).where(and(eq(artifacts.id, c.req.param("artifactId")), eq(artifacts.projectId, p.id)));
   if (!a) throw new HTTPException(404, { message: "File not found" });
   await db.delete(artifacts).where(eq(artifacts.id, a.id));
+  if (a.storageKey) await deleteOriginal(a.storageKey).catch((e) => console.error("object delete failed", e));
   await audit(db, user, { projectId: p.id, action: "artifact.delete", objectType: "artifact", objectId: a.id, summary: `Deleted ${a.filename} v${a.version}` });
   await touchProject(db, p.id);
   return c.json({ ok: true });
+});
+
+/** Redirects to a short-lived signed URL for the original file in Neon Object Storage. */
+app.get("/:projectId/files/:artifactId/download", async (c) => {
+  const { db, p, user } = await project(c);
+  const [a] = await db.select().from(artifacts).where(and(eq(artifacts.id, c.req.param("artifactId")), eq(artifacts.projectId, p.id)));
+  if (!a) throw new HTTPException(404, { message: "File not found" });
+  if (!a.storageKey || !storageEnabled()) throw new HTTPException(404, { message: "NO_ORIGINAL: no original file is stored for this version" });
+  await audit(db, user, { projectId: p.id, action: "artifact.download", objectType: "artifact", objectId: a.id, summary: `Downloaded ${a.filename} v${a.version}` });
+  return c.redirect(await downloadUrl(a.storageKey, a.filename), 302);
 });
 
 const mapInput = z.object({ sourceFilename: z.string().min(1), target: z.string().min(1), resolvedFilename: z.string().min(1), reason: z.string().max(500).default("") });

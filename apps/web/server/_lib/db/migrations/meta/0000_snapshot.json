@@ -1,48 +1,9 @@
 {
-  "id": "a0172485-6ef2-4f4a-b4be-a2e53042b380",
+  "id": "0b7b49ec-49b0-4e73-a3ef-f6a2bbb596d9",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.artifact_blobs": {
-      "name": "artifact_blobs",
-      "schema": "",
-      "columns": {
-        "artifact_id": {
-          "name": "artifact_id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "content": {
-          "name": "content",
-          "type": "bytea",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "artifact_blobs_artifact_id_artifacts_id_fk": {
-          "name": "artifact_blobs_artifact_id_artifacts_id_fk",
-          "tableFrom": "artifact_blobs",
-          "tableTo": "artifacts",
-          "columnsFrom": [
-            "artifact_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.artifacts": {
       "name": "artifacts",
       "schema": "",
@@ -113,6 +74,12 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "storage_key": {
+          "name": "storage_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "uploaded_by": {
           "name": "uploaded_by",

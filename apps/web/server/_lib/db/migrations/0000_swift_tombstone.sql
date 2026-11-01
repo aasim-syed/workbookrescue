@@ -1,8 +1,3 @@
-CREATE TABLE "artifact_blobs" (
-	"artifact_id" uuid PRIMARY KEY NOT NULL,
-	"content" "bytea" NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "artifacts" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"project_id" uuid NOT NULL,
@@ -15,6 +10,7 @@ CREATE TABLE "artifacts" (
 	"external_links" jsonb NOT NULL,
 	"warnings" jsonb NOT NULL,
 	"cell_count" integer NOT NULL,
+	"storage_key" text,
 	"uploaded_by" uuid,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "artifacts_project_file_hash" UNIQUE("project_id","filename","sha256")
@@ -135,7 +131,6 @@ CREATE TABLE "users" (
 	CONSTRAINT "users_email_unique" UNIQUE("email")
 );
 --> statement-breakpoint
-ALTER TABLE "artifact_blobs" ADD CONSTRAINT "artifact_blobs_artifact_id_artifacts_id_fk" FOREIGN KEY ("artifact_id") REFERENCES "public"."artifacts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "artifacts" ADD CONSTRAINT "artifacts_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "artifacts" ADD CONSTRAINT "artifacts_uploaded_by_users_id_fk" FOREIGN KEY ("uploaded_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "assertions" ADD CONSTRAINT "assertions_baseline_id_baselines_id_fk" FOREIGN KEY ("baseline_id") REFERENCES "public"."baselines"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

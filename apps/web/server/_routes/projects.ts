@@ -6,6 +6,7 @@ import { body, database, project, type Env } from "../_lib/http.js";
 import { audit, latestArtifacts, loadContext, projectUnknowns } from "../_lib/store.js";
 import { addDemoShipping, seedDemo, simulateLaborChange } from "../_lib/seed.js";
 import { buildExport } from "../_lib/export.js";
+import { deletePrefix, storageEnabled } from "../_lib/storage.js";
 
 const { projects, artifacts, auditEvents } = schema;
 const app = new Hono<Env>();
@@ -62,6 +63,7 @@ app.patch("/:projectId", async (c) => {
 
 app.delete("/:projectId", async (c) => {
   const { db, p, user } = await project(c);
+  if (storageEnabled()) await deletePrefix(`${p.id}/`).catch((e) => console.error("object cleanup failed", e));
   await db.delete(projects).where(eq(projects.id, p.id));
   // project-scoped audit rows cascade; keep a workspace-level record that it happened
   await audit(db, user, { action: "project.delete", objectType: "project", objectId: p.id, summary: `Deleted project "${p.name}"` });

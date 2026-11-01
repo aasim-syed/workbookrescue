@@ -1,5 +1,5 @@
 import { DragEvent, useRef, useState } from "react";
-import { AlertTriangle, FileSpreadsheet, FileText, Loader2, MoreHorizontal, Trash2, UploadCloud } from "lucide-react";
+import { AlertTriangle, Download, FileSpreadsheet, FileText, Loader2, MoreHorizontal, Trash2, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 import { ApiError, projectApi, useFiles, useProjectMutation } from "@/lib/api";
 import { formatDistanceToNowStrict } from "@/lib/time";
@@ -116,6 +116,9 @@ export default function FilesView({ projectId }: { projectId: string }) {
                           <Button variant="ghost" size="icon" className="size-8" aria-label="File actions"><MoreHorizontal /></Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem disabled={!f.hasOriginal} onClick={() => (window.location.href = `/api/projects/${projectId}/files/${f.id}/download`)}>
+                            <Download /> Download original
+                          </DropdownMenuItem>
                           <DropdownMenuItem variant="destructive" onClick={() => confirm(`Delete ${f.filename} v${f.version}?`) && del.mutate(f.id)}>
                             <Trash2 /> Delete this version
                           </DropdownMenuItem>
