@@ -243,3 +243,73 @@ export function findOutputs(ctx: GraphContext, limit = 100): { artifactId: strin
   out.sort((a, b) => Number(linkedFiles.has(a.art.id)) - Number(linkedFiles.has(b.art.id)) || a.art.filename.localeCompare(b.art.filename));
   return out.slice(0, limit).map(({ art, cell }) => ({ artifactId: art.id, filename: art.filename, sheet: cell.sheet, address: cell.address, cached: cell.cached }));
 }
+
+/**
+ * Circular references anywhere in the project, not just under one output.
+ * Strongly connected components over formula cells (Tarjan, iterative so deep chains can't overflow the stack).
+ * Ranges larger than 64 cells are not expanded, so a cycle hidden behind one will not be found.
+ */
+export function findCycles(ctx: GraphContext, maxFormulaCells = 20000): { artifactId: string; filename: string; sheet: string; address: string; size: number }[] {
+  const adj = new Map<string, string[]>();
+  const info = new Map<string, { artifactId: string; filename: string; sheet: string; address: string }>();
+  const latest = new Set(ctx.byFilename.values());
+  let formulas = 0;
+  for (const art of ctx.artifacts.values()) {
+    if (!latest.has(art.id)) continue;
+    for (const cell of art.cells.values()) {
+      if (!cell.formula || ++formulas > maxFormulaCells) continue;
+      const id = nodeId(art.id, cell.sheet, cell.address);
+      info.set(id, { artifactId: art.id, filename: art.filename, sheet: cell.sheet, address: cell.address });
+      const out: string[] = [];
+      for (const ref of tokenizeRefs(cell.formula)) {
+        const res = resolveWorkbook(ctx, art, ref);
+        const tart = res.artifactId ? ctx.artifacts.get(res.artifactId) : undefined;
+        if (!tart || rangeSize(ref.range) > 64) continue;
+        const sheet = ref.sheet ?? cell.sheet;
+        for (let r = ref.range.r1; r <= ref.range.r2; r++)
+          for (let c = ref.range.c1; c <= ref.range.c2; c++) {
+            const a = toAddress(c, r);
+            if (tart.cells.get(key(sheet, a))?.formula) out.push(nodeId(tart.id, sheet, a));
+          }
+      }
+      adj.set(id, out);
+    }
+  }
+
+  const index = new Map<string, number>();
+  const low = new Map<string, number>();
+  const onStack = new Set<string>();
+  const stack: string[] = [];
+  const found: { artifactId: string; filename: string; sheet: string; address: string; size: number }[] = [];
+  let counter = 0;
+  for (const start of adj.keys()) {
+    if (index.has(start)) continue;
+    const work: { v: string; i: number }[] = [{ v: start, i: 0 }];
+    index.set(start, counter); low.set(start, counter++); stack.push(start); onStack.add(start);
+    while (work.length) {
+      const top = work[work.length - 1];
+      const nbrs = adj.get(top.v) ?? [];
+      if (top.i < nbrs.length) {
+        const w = nbrs[top.i++];
+        if (!adj.has(w)) continue;
+        if (!index.has(w)) {
+          index.set(w, counter); low.set(w, counter++); stack.push(w); onStack.add(w);
+          work.push({ v: w, i: 0 });
+        } else if (onStack.has(w)) low.set(top.v, Math.min(low.get(top.v)!, index.get(w)!));
+      } else {
+        work.pop();
+        if (work.length) { const p = work[work.length - 1].v; low.set(p, Math.min(low.get(p)!, low.get(top.v)!)); }
+        if (low.get(top.v) === index.get(top.v)) {
+          const comp: string[] = [];
+          let w: string;
+          do { w = stack.pop()!; onStack.delete(w); comp.push(w); } while (w !== top.v);
+          if (comp.length > 1 || (adj.get(top.v) ?? []).includes(top.v)) {
+            comp.sort();
+            found.push({ ...info.get(comp[0])!, size: comp.length });
+          }
+        }
+      }
+    }
+  }
+  return found;
+}

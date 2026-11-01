@@ -171,3 +171,17 @@ export const rateLimits = pgTable(
   },
   (t) => [primaryKey({ columns: [t.key, t.bucket] })],
 );
+
+/** A reviewer's decision to accept a known limitation (for example a macro that is not analysed). Never used for unresolved dependencies. */
+export const unknownAcks = pgTable(
+  "unknown_acks",
+  {
+    id: id(),
+    projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    reason: text("reason").notNull(),
+    reviewerId: uuid("reviewer_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: created(),
+  },
+  (t) => [unique("unknown_acks_unique").on(t.projectId, t.key)],
+);

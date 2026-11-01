@@ -2,7 +2,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { schema, type DB } from "./db/client.js";
 import type { AuthUser } from "./auth.js";
 import { sha256 } from "./core/parse.js";
-import { resolveWorkbook, type ArtifactData, type GraphContext, type ManualEdge, type Status, type Unknown } from "./core/graph.js";
+import type { ArtifactData, GraphContext, ManualEdge, Status } from "./core/graph.js";
 
 const { artifacts, cells, mappings, steps, projects, auditEvents } = schema;
 
@@ -59,25 +59,6 @@ export async function loadContext(db: DB, projectId: string, pinned?: Manifest):
     }));
 
   return { artifacts: data, byFilename, mappings: mapped, manualEdges };
-}
-
-const WARNING_STATUS: Record<string, Status> = { EXTERNAL_LINKS: "Verified", CACHE_MISSING: "Unresolved" };
-
-/** Everything the reviewer still has to deal with, project-wide. Resolved items disappear on their own. */
-export function projectUnknowns(ctx: GraphContext, warningsByArtifact: Map<string, import("./core/types.js").Warning[]>): Unknown[] {
-  const out: Unknown[] = [];
-  for (const art of ctx.artifacts.values()) {
-    if (!ctx.byFilename.has(art.filename) || ctx.byFilename.get(art.filename) !== art.id) continue;
-    for (const l of art.externalLinks) {
-      const r = resolveWorkbook(ctx, art, { externalIndex: l.index });
-      if (!r.artifactId) out.push({ code: "EXTERNAL_LINK_UNRESOLVED", status: "Unresolved", message: `${art.filename} links to ${l.target}, which isn't in this project`, artifactId: art.id, filename: art.filename, target: l.target });
-    }
-    for (const w of warningsByArtifact.get(art.id) ?? []) {
-      if (w.code === "EXTERNAL_LINKS") continue; // resolved or reported above
-      out.push({ code: w.code, status: WARNING_STATUS[w.code] ?? "Unsupported", message: `${art.filename}: ${w.message}`, artifactId: art.id, filename: art.filename });
-    }
-  }
-  return out;
 }
 
 export async function audit(

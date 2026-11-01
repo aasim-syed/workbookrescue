@@ -10,6 +10,7 @@ import lineage from "./_routes/lineage.js";
 import workflow from "./_routes/workflow.js";
 import tests from "./_routes/tests.js";
 import cron from "./_routes/cron.js";
+import unknowns from "./_routes/unknowns.js";
 
 const app = new Hono<Env>().basePath("/api");
 
@@ -27,7 +28,7 @@ app.route("/auth", auth);
 
 app.use("/projects/*", requireAuth);
 app.use("/projects", requireAuth);
-for (const r of [projects, files, lineage, workflow, tests]) app.route("/projects", r);
+for (const r of [projects, files, lineage, workflow, tests, unknowns]) app.route("/projects", r);
 
 // RFC 9457-style problem responses
 app.onError((err, c) => {

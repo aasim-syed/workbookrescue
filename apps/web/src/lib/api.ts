@@ -5,7 +5,14 @@ export type Outcome = "PASS" | "FAIL" | "INCONCLUSIVE" | "UNSUPPORTED" | "ERROR"
 
 export interface User { id: string; orgId: string; email: string; name: string; isGuest: boolean }
 export interface Project { id: string; name: string; description: string; isDemo: boolean; updatedAt: string; createdAt: string; files?: number; unresolved?: number }
-export interface Unknown { code: string; status: Status; message: string; artifactId?: string; filename?: string; target?: string; nodeId?: string }
+export interface UnknownItem {
+  id: string; category: "link" | "cache" | "unsupported" | "cycle" | "step" | "test"; code: string; status: Status; severity: "blocking" | "review";
+  title: string; detail: string; filename?: string; sheet?: string; address?: string; target?: string;
+  suggestions?: { filename: string; method: string }[]; samples?: { sheet: string; address: string }[];
+  stepId?: string; baselineId?: string; acknowledgeable: boolean; ack?: { reason: string; by: string; at: string };
+}
+export type Unknown = UnknownItem;
+export interface UnknownsSummary { blocking: number; review: number; acknowledged: number }
 export interface Warning { code: string; severity: string; message: string }
 export interface FileRow {
   id: string; filename: string; format: string; sha256: string; sizeBytes: number; version: number;
@@ -66,7 +73,10 @@ const P = (id: string) => `/projects/${id}`;
 
 export const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => api<{ user: User | null }>("GET", "/auth/me").then((r) => r.user), staleTime: 60_000 });
 export const useProjects = () => useQuery({ queryKey: ["projects"], queryFn: () => api<{ projects: Project[] }>("GET", "/projects").then((r) => r.projects) });
-export const useProject = (id: string) => useQuery({ queryKey: ["project", id], queryFn: () => api<{ project: Project; unknowns: Unknown[]; fileCount: number }>("GET", P(id)) });
+export const useProject = (id: string) =>
+  useQuery({ queryKey: ["project", id], queryFn: () => api<{ project: Project; unknowns: UnknownItem[]; summary: UnknownsSummary; fileCount: number }>("GET", P(id)) });
+export const useUnknowns = (id: string) =>
+  useQuery({ queryKey: ["unknowns", id], queryFn: () => api<{ items: UnknownItem[]; summary: UnknownsSummary }>("GET", `${P(id)}/unknowns`) });
 export const useFiles = (id: string) => useQuery({ queryKey: ["files", id], queryFn: () => api<{ files: FileRow[]; limits: { maxFileBytes: number } }>("GET", `${P(id)}/files`) });
 export const useOutputs = (id: string) => useQuery({ queryKey: ["outputs", id], queryFn: () => api<{ outputs: OutputRef[] }>("GET", `${P(id)}/outputs`).then((r) => r.outputs) });
 export const useGraph = (id: string, o?: { artifactId: string; sheet: string; address: string }) =>
@@ -86,7 +96,7 @@ export function useProjectMutation<V = void, R = unknown>(projectId: string, fn:
   return useMutation({
     mutationFn: fn,
     onSuccess: () => {
-      for (const k of ["project", "files", "outputs", "graph", "steps", "baselines", "audit"]) qc.invalidateQueries({ queryKey: [k, projectId] });
+      for (const k of ["project", "files", "outputs", "graph", "steps", "baselines", "audit", "unknowns", "sheet"]) qc.invalidateQueries({ queryKey: [k, projectId] });
       qc.invalidateQueries({ queryKey: ["projects"] });
     },
   });
@@ -104,6 +114,8 @@ export const projectApi = {
   approveBaseline: (id: string, bid: string) => api("POST", `${P(id)}/baselines/${bid}/approve`),
   deleteBaseline: (id: string, bid: string) => api("DELETE", `${P(id)}/baselines/${bid}`),
   runBaseline: (id: string, bid: string) => api<{ run: Run }>("POST", `${P(id)}/baselines/${bid}/runs`),
+  ackUnknown: (id: string, key: string, reason: string) => api("POST", `${P(id)}/unknowns/ack`, { key, reason }),
+  reopenUnknown: (id: string, key: string) => api("DELETE", `${P(id)}/unknowns/ack?key=${encodeURIComponent(key)}`),
   demoShipping: (id: string) => api("POST", `${P(id)}/demo/shipping`),
   demoChange: (id: string) => api("POST", `${P(id)}/demo/simulate-change`),
 };

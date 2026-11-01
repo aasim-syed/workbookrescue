@@ -3,7 +3,8 @@ import { desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { schema } from "../_lib/db/client.js";
 import { body, database, project, type Env } from "../_lib/http.js";
-import { audit, latestArtifacts, loadContext, projectUnknowns } from "../_lib/store.js";
+import { audit } from "../_lib/store.js";
+import { computeUnknowns } from "../_lib/unknowns.js";
 import { addDemoShipping, seedDemo, simulateLaborChange } from "../_lib/seed.js";
 import { buildExport } from "../_lib/export.js";
 import { assertProjectQuota, rateLimit } from "../_lib/limits.js";
@@ -23,10 +24,8 @@ app.get("/", async (c) => {
     : [];
   const unknowns = new Map<string, number>();
   for (const r of rows) {
-    const arts = await latestArtifacts(db, r.id);
-    if (!arts.length) continue;
-    const ctx = await loadContext(db, r.id);
-    unknowns.set(r.id, projectUnknowns(ctx, new Map(arts.map((a) => [a.id, a.warnings]))).filter((u) => u.status === "Unresolved").length);
+    if (!counts.some((x) => x.projectId === r.id)) continue;
+    unknowns.set(r.id, (await computeUnknowns(db, r.id)).summary.blocking);
   }
   return c.json({ projects: rows.map((r) => ({ ...r, files: counts.find((x) => x.projectId === r.id)?.n ?? 0, unresolved: unknowns.get(r.id) ?? 0 })) });
 });
@@ -50,10 +49,9 @@ app.post("/demo", async (c) => {
 
 app.get("/:projectId", async (c) => {
   const { db, p } = await project(c);
-  const arts = await latestArtifacts(db, p.id);
-  const ctx = await loadContext(db, p.id);
-  const unknowns = projectUnknowns(ctx, new Map(arts.map((a) => [a.id, a.warnings])));
-  return c.json({ project: p, unknowns, fileCount: arts.length });
+  const { items, summary } = await computeUnknowns(db, p.id);
+  const [{ n }] = await db.select({ n: sql<number>`count(distinct ${artifacts.filename})::int` }).from(artifacts).where(eq(artifacts.projectId, p.id));
+  return c.json({ project: p, unknowns: items, summary, fileCount: n });
 });
 
 app.patch("/:projectId", async (c) => {
