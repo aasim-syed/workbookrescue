@@ -6,13 +6,25 @@ const COLS = 70;
 const ROWS = 40;
 const GAP = 0.62;
 
-const C = {
-  floor: new THREE.Color("#12261c"),
-  hot: new THREE.Color("#38ff9c"),
-  verified: new THREE.Color("#38ff9c"),
-  declared: new THREE.Color("#6aa6ff"),
-  unresolved: new THREE.Color("#ff5c5c"),
-};
+const makePalette = (p: Record<"bg" | "floor" | "hot" | "verified" | "declared" | "unresolved" | "grey" | "dead", string>, light: boolean) => ({
+  bg: new THREE.Color(p.bg),
+  floor: new THREE.Color(p.floor),
+  hot: new THREE.Color(p.hot),
+  verified: new THREE.Color(p.verified),
+  declared: new THREE.Color(p.declared),
+  unresolved: new THREE.Color(p.unresolved),
+  grey: new THREE.Color(p.grey),
+  dead: new THREE.Color(p.dead),
+  // additive glows wash out on a light background
+  blending: light ? THREE.NormalBlending : THREE.AdditiveBlending,
+  haloOpacity: light ? 0.14 : 0.09,
+  // brighter floor cells pop on dark; darker ones pop on light
+  floorGain: (wave: number) => (light ? 1.15 - wave * 0.5 : 0.8 + wave * 0.9),
+});
+type Palette = ReturnType<typeof makePalette>;
+
+const DARK = makePalette({ bg: "#06080a", floor: "#12261c", hot: "#38ff9c", verified: "#38ff9c", declared: "#6aa6ff", unresolved: "#ff5c5c", grey: "#5a6660", dead: "#2a2f2c" }, false);
+const LIGHT = makePalette({ bg: "#fbfbfa", floor: "#9dbfac", hot: "#13803f", verified: "#13803f", declared: "#2c5fb3", unresolved: "#c0392b", grey: "#9aa39e", dead: "#c9cdca" }, true);
 
 type S = "verified" | "declared" | "unresolved";
 // The demo process. `p` is each file's place in the recovered lineage; chaos positions are generated below.
@@ -48,9 +60,6 @@ const CHAOS = NODES.map(() => ({
   red: rand() < 0.45,
 }));
 const TANGLE: [number, number][] = Array.from({ length: 16 }, () => [Math.floor(rand() * 12), Math.floor(rand() * 12)]);
-const GREY = new THREE.Color("#5a6660");
-const DEAD = new THREE.Color("#2a2f2c");
-
 // Shared between camera and nodes: 0 = chaos, 1 = lineage recovered. Driven by scroll.
 const scene = { order: 0 };
 const sstep = (a: number, b: number, x: number) => THREE.MathUtils.smoothstep(x, a, b);
@@ -85,7 +94,7 @@ function CameraRig() {
   return null;
 }
 
-function Floor() {
+function Floor({ pal }: { pal: Palette }) {
   const mesh = useRef<THREE.InstancedMesh>(null!);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const tmp = useMemo(() => new THREE.Color(), []);
@@ -95,8 +104,8 @@ function Floor() {
   const normal = useMemo(() => new THREE.Vector3(), []);
 
   useLayoutEffect(() => {
-    for (let i = 0; i < COLS * ROWS; i++) mesh.current.setColorAt(i, C.floor);
-  }, []);
+    for (let i = 0; i < COLS * ROWS; i++) mesh.current.setColorAt(i, pal.floor);
+  }, [pal]);
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
@@ -123,7 +132,7 @@ function Floor() {
         dummy.scale.set(s, s, 1);
         dummy.updateMatrix();
         mesh.current.setMatrixAt(i, dummy.matrix);
-        tmp.copy(C.floor).multiplyScalar(0.8 + wave * 0.9).lerp(C.hot, near * 0.95);
+        tmp.copy(pal.floor).multiplyScalar(pal.floorGain(wave)).lerp(pal.hot, near * 0.95);
         mesh.current.setColorAt(i, tmp);
         i++;
       }
@@ -140,7 +149,7 @@ function Floor() {
   );
 }
 
-function Lineage() {
+function Lineage({ pal }: { pal: Palette }) {
   const nodes = useRef<THREE.InstancedMesh>(null!);
   const halos = useRef<THREE.InstancedMesh>(null!);
   const pulses = useRef<THREE.InstancedMesh>(null!);
@@ -185,8 +194,8 @@ function Lineage() {
       nodes.current.setMatrixAt(i, dummy.matrix);
 
       // chaos: dead grey (some red). Recovered: status colour. The quote stays dead until it is traced.
-      const chaosCol = n.big ? DEAD : ch.red ? C.unresolved : GREY;
-      col.copy(chaosCol).lerp(C[n.s], e);
+      const chaosCol = n.big ? pal.dead : ch.red ? pal.unresolved : pal.grey;
+      col.copy(chaosCol).lerp(pal[n.s], e);
       nodes.current.setColorAt(i, col);
       const blink = n.s === "unresolved" || (ch.red && e < 0.5) ? 0.6 + Math.sin(t * 6 + i) * 0.4 : 0.55 + Math.sin(t * 2 + i) * 0.15;
       dummy.position.z -= 0.12;
@@ -210,12 +219,12 @@ function Lineage() {
       cl.setXYZ(k * 2 + 1, c.r, c.g, c.b);
     };
     EDGES.forEach(([f, to], k) => {
-      const clean = NODES[f].s === "unresolved" ? C.unresolved : NODES[f].s === "declared" || NODES[to].s === "declared" ? C.declared : C.verified;
-      col.copy(C.unresolved).multiplyScalar(0.45).lerp(clean, o);
+      const clean = NODES[f].s === "unresolved" ? pal.unresolved : NODES[f].s === "declared" || NODES[to].s === "declared" ? pal.declared : pal.verified;
+      col.copy(pal.bg).lerp(pal.unresolved, 0.45).lerp(clean, o);
       seg(k, cur[f], cur[to], col);
     });
     TANGLE.forEach(([f, to], k) => {
-      col.copy(C.unresolved).multiplyScalar(0.5 * (1 - o) * (0.6 + Math.sin(t * 3 + k) * 0.4));
+      col.copy(pal.bg).lerp(pal.unresolved, 0.5 * (1 - o) * (0.6 + Math.sin(t * 3 + k) * 0.4));
       seg(EDGES.length + k, cur[f], cur[to], col);
     });
     pos.needsUpdate = true;
@@ -231,7 +240,7 @@ function Lineage() {
       dummy.scale.setScalar((0.1 + Math.sin(u * Math.PI) * 0.08) * o * o);
       dummy.updateMatrix();
       pulses.current.setMatrixAt(i, dummy.matrix);
-      pulses.current.setColorAt(i, NODES[EDGES[e][0]].s === "unresolved" ? C.unresolved : C.hot);
+      pulses.current.setColorAt(i, NODES[EDGES[e][0]].s === "unresolved" ? pal.unresolved : pal.hot);
     }
     pulses.current.instanceMatrix.needsUpdate = true;
     if (pulses.current.instanceColor) pulses.current.instanceColor.needsUpdate = true;
@@ -244,7 +253,7 @@ function Lineage() {
       </lineSegments>
       <instancedMesh ref={halos} args={[undefined, undefined, NODES.length]} frustumCulled={false}>
         <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial transparent opacity={0.09} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+        <meshBasicMaterial transparent opacity={pal.haloOpacity} blending={pal.blending} depthWrite={false} toneMapped={false} />
       </instancedMesh>
       <instancedMesh ref={nodes} args={[undefined, undefined, NODES.length]} frustumCulled={false}>
         <boxGeometry args={[1, 1, 1]} />
@@ -252,13 +261,14 @@ function Lineage() {
       </instancedMesh>
       <instancedMesh ref={pulses} args={[undefined, undefined, EDGES.length * PER]} frustumCulled={false}>
         <boxGeometry args={[1, 1, 1]} />
-        <meshBasicMaterial blending={THREE.AdditiveBlending} toneMapped={false} />
+        <meshBasicMaterial blending={pal.blending} toneMapped={false} />
       </instancedMesh>
     </group>
   );
 }
 
-export default function GridScene() {
+export default function GridScene({ light = false }: { light?: boolean }) {
+  const pal = light ? LIGHT : DARK;
   return (
     <div className="pointer-events-none fixed inset-0 z-0" aria-hidden>
       <Canvas
@@ -269,8 +279,8 @@ export default function GridScene() {
         gl={{ alpha: true, antialias: true }}
       >
         <CameraRig />
-        <Floor />
-        <Lineage />
+        <Floor pal={pal} />
+        <Lineage pal={pal} />
       </Canvas>
     </div>
   );

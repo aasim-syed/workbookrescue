@@ -1,7 +1,8 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { FileSpreadsheet, Loader2 } from "lucide-react";
+import { FileSpreadsheet, Loader2, Moon, Sun } from "lucide-react";
+import { useApplyTheme, useTheme } from "@/lib/theme";
 import { toast } from "sonner";
 import { api, useMe, type User } from "@/lib/api";
 import { startDemo } from "@/lib/demo";
@@ -18,10 +19,8 @@ export default function Auth({ mode }: { mode: "login" | "signup" }) {
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const signup = mode === "signup";
 
-  useEffect(() => {
-    document.documentElement.classList.remove("stage");
-    document.documentElement.classList.toggle("dark", window.matchMedia("(prefers-color-scheme: dark)").matches);
-  }, []);
+  useApplyTheme();
+  const theme = useTheme();
 
   if (me.data && !me.data.isGuest) return <Navigate to="/app" replace />;
 
@@ -51,7 +50,10 @@ export default function Auth({ mode }: { mode: "login" | "signup" }) {
   };
 
   return (
-    <div className="grid min-h-screen place-items-center bg-background p-4">
+    <div className="relative grid min-h-screen place-items-center bg-background p-4">
+      <Button variant="ghost" size="icon" className="absolute right-4 top-4" onClick={theme.toggle} aria-label={theme.light ? "Switch to dark mode" : "Switch to light mode"}>
+        {theme.light ? <Moon className="size-4" /> : <Sun className="size-4" />}
+      </Button>
       <div className="w-full max-w-sm">
         <Link to="/" className="mb-6 flex items-center justify-center gap-2 text-sm font-semibold">
           <FileSpreadsheet className="size-4 text-verified" /> WorkbookRescue

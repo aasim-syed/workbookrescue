@@ -1,26 +1,16 @@
-import { ReactNode, useEffect } from "react";
+import { ReactNode } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, LogOut, FileSpreadsheet } from "lucide-react";
+import { ChevronRight, LogOut, FileSpreadsheet, Moon, Sun } from "lucide-react";
 import { api, useMe } from "@/lib/api";
+import { useApplyTheme, useTheme } from "@/lib/theme";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 
-/** Follows the system theme for the signed-in app. */
-function useSystemTheme() {
-  useEffect(() => {
-    document.documentElement.classList.remove("stage");
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const apply = () => document.documentElement.classList.toggle("dark", mq.matches);
-    apply();
-    mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
-  }, []);
-}
-
 export default function AppShell({ crumb, children }: { crumb?: string; children: ReactNode }) {
-  useSystemTheme();
+  useApplyTheme();
+  const theme = useTheme();
   const me = useMe();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -60,6 +50,9 @@ export default function AppShell({ crumb, children }: { crumb?: string; children
             {user.isGuest && (
               <DropdownMenuItem onClick={() => navigate("/signup")}>Create an account</DropdownMenuItem>
             )}
+            <DropdownMenuItem onClick={theme.toggle}>
+              {theme.light ? <Moon className="size-4" /> : <Sun className="size-4" />} {theme.light ? "Dark mode" : "Light mode"}
+            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={async () => {
                 await api("POST", "/auth/logout");

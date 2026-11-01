@@ -7,6 +7,7 @@ import SmoothScroll from "../components/SmoothScroll";
 import { toast } from "sonner";
 import { startDemo } from "../lib/demo";
 import { useMe, type Status } from "../lib/api";
+import { useTheme } from "../lib/theme";
 import GridScene from "../components/GridScene";
 import { Magnetic, Reveal, SplitText } from "../components/Motion";
 import StatusLabel from "../components/StatusLabel";
@@ -59,7 +60,7 @@ const inr = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN") + ".00"
 function Marquee() {
   const row = [...files, ...files];
   return (
-    <div className="relative overflow-hidden border-y rule bg-black/40 py-5 backdrop-blur-sm">
+    <div className="relative overflow-hidden border-y rule bg-[var(--glass)] py-5 backdrop-blur-sm">
       <motion.div className="mono flex w-max gap-12 text-sm muted" animate={{ x: ["0%", "-50%"] }} transition={{ duration: 40, ease: "linear", repeat: Infinity }}>
         {row.map((f, i) => (
           <span key={i} className="flex items-center gap-12 whitespace-nowrap">
@@ -123,7 +124,7 @@ function FailTerminal() {
   return (
     <motion.div
       ref={ref}
-      className="mono relative overflow-hidden rounded-lg border rule bg-black/70 p-6 text-sm leading-8 backdrop-blur-md sm:p-8 sm:text-base"
+      className="mono relative overflow-hidden rounded-lg border rule bg-[var(--glass-3)] p-6 text-sm leading-8 backdrop-blur-md sm:p-8 sm:text-base"
       animate={inView ? { boxShadow: ["0 0 0 0 rgba(255,92,92,0)", "0 0 80px 0 rgba(255,92,92,.35)", "0 0 40px 0 rgba(255,92,92,.15)"] } : {}}
       transition={{ delay: 1.8, duration: 1.4 }}
     >
@@ -143,14 +144,14 @@ function TiltCard({ children }: { children: React.ReactNode }) {
   const [t, setT] = useState({ x: 0, y: 0 });
   return (
     <motion.div
-      className="rounded-lg border rule bg-black/50 p-6 backdrop-blur-md"
+      className="rounded-lg border rule bg-[var(--glass-2)] p-6 backdrop-blur-md"
       onPointerMove={(e) => {
         const r = e.currentTarget.getBoundingClientRect();
         setT({ x: ((e.clientX - r.left) / r.width - 0.5) * 10, y: ((e.clientY - r.top) / r.height - 0.5) * -10 });
       }}
       onPointerLeave={() => setT({ x: 0, y: 0 })}
       animate={{ rotateY: t.x, rotateX: t.y }}
-      whileHover={{ borderColor: "rgba(56,255,156,.6)" }}
+      whileHover={{ borderColor: "var(--verified)" }}
       transition={{ type: "spring", stiffness: 200, damping: 18 }}
       style={{ transformPerspective: 700 }}
     >
@@ -188,18 +189,23 @@ export default function Landing() {
   useMotionValueEvent(scrollYProgress, "change", (v) => setStage(v < 0.05 ? 0 : v < 0.2 ? 1 : 2));
   const scrim = useTransform(scrollYProgress, [0, 0.1], [1, 0]);
 
+  const { light, toggle: toggleTheme } = useTheme();
+
   useEffect(() => {
-    document.documentElement.classList.add("stage");
-    return () => document.documentElement.classList.remove("stage");
-  }, []);
+    const root = document.documentElement;
+    root.classList.add("stage");
+    root.classList.remove("dark");
+    root.classList.toggle("light", light);
+    return () => root.classList.remove("stage", "light");
+  }, [light]);
 
   return (
     <>
       <SmoothScroll />
       <Cursor />
-      <GridScene />
-      <motion.div className="pointer-events-none fixed inset-0 z-[1]" style={{ opacity: scrim, background: "linear-gradient(90deg, rgba(6,8,10,.92) 0%, rgba(6,8,10,.75) 40%, transparent 65%)" }} />
-      <div className="pointer-events-none fixed inset-0 z-[1]" style={{ background: "radial-gradient(ellipse at 50% 40%, transparent 30%, rgba(6,8,10,.85) 100%)" }} />
+      <GridScene light={light} />
+      <motion.div className="pointer-events-none fixed inset-0 z-[1]" style={{ opacity: scrim, background: "linear-gradient(90deg, rgba(var(--scrim),.92) 0%, rgba(var(--scrim),.75) 40%, transparent 65%)" }} />
+      <div className="pointer-events-none fixed inset-0 z-[1]" style={{ background: "radial-gradient(ellipse at 50% 40%, transparent 30%, rgba(var(--scrim),.85) 100%)" }} />
       <motion.div className="fixed left-0 right-0 top-0 z-50 h-0.5 origin-left" style={{ scaleX: bar, background: "var(--verified)" }} />
 
       <div className="mono pointer-events-none fixed bottom-6 right-6 z-40 text-right text-xs">
@@ -218,9 +224,14 @@ export default function Landing() {
             <a key={n} className="link" href={`#${n.replace(/ /g, "-")}`}>{n}</a>
           ))}
         </nav>
-        <Link to={me.data && !me.data.isGuest ? "/app" : "/login"} data-cursor="open" className="rounded-full border px-4 py-1.5" style={{ borderColor: "var(--verified)", color: "var(--verified)" }}>
-          {me.data && !me.data.isGuest ? "open app →" : "sign in →"}
-        </Link>
+        <div className="flex items-center gap-3">
+          <button onClick={toggleTheme} data-cursor="go" aria-label={light ? "Switch to dark mode" : "Switch to light mode"} className="muted rounded-full border rule px-3 py-1.5">
+            {light ? "dark" : "light"}
+          </button>
+          <Link to={me.data && !me.data.isGuest ? "/app" : "/login"} data-cursor="open" className="rounded-full border px-4 py-1.5" style={{ borderColor: "var(--verified)", color: "var(--verified)" }}>
+            {me.data && !me.data.isGuest ? "open app →" : "sign in →"}
+          </Link>
+        </div>
       </header>
 
       <main id="top" className="relative z-10">
@@ -240,7 +251,7 @@ export default function Landing() {
           </motion.p>
           <motion.div className="mt-10 flex flex-wrap items-center gap-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.4 }}>
             <Magnetic>
-              <button onClick={demo.start} disabled={demo.busy} data-cursor="go" className="inline-block rounded-full px-8 py-4 text-base font-medium text-black" style={{ background: "var(--verified)" }}>
+              <button onClick={demo.start} disabled={demo.busy} data-cursor="go" className="inline-block rounded-full px-8 py-4 text-base font-medium text-[var(--on-accent)]" style={{ background: "var(--verified)" }}>
                 {demo.busy ? "Loading…" : "Try the walkthrough ↗"}
               </button>
             </Magnetic>
@@ -307,7 +318,7 @@ export default function Landing() {
           </Reveal>
           <div className="mt-12">
             <Magnetic strength={0.5}>
-              <Link to="/signup" data-cursor="go" className="inline-block rounded-full px-10 py-5 text-lg font-medium text-black" style={{ background: "var(--verified)" }}>
+              <Link to="/signup" data-cursor="go" className="inline-block rounded-full px-10 py-5 text-lg font-medium text-[var(--on-accent)]" style={{ background: "var(--verified)" }}>
                 Create your workspace ↗
               </Link>
             </Magnetic>

@@ -119,5 +119,15 @@ html.stage {
   --background: #06080a; --foreground: #eef6f0; --muted-foreground: #7f8c85;
   --bg: #06080a; --fg: #eef6f0; --rule: #1e2823; --surface: #0d1210;
   --verified: #38ff9c; --declared: #6aa6ff; --inferred: #ffc24a; --unresolved: #ff5c5c; --unsupported: #7f8c85;
+  --scrim: 6, 8, 10; --on-accent: #000;
+  --glass: rgba(0, 0, 0, .4); --glass-2: rgba(0, 0, 0, .5); --glass-3: rgba(0, 0, 0, .7);
   color-scheme: dark;
+}
+html.stage.light {
+  --background: #fbfbfa; --foreground: #141414; --muted-foreground: #5f6560; --border: oklch(0 0 0 / 10%);
+  --bg: #fbfbfa; --fg: #141414; --rule: #dcdcd6; --surface: #f1f1ee;
+  --verified: #13803f; --declared: #2c5fb3; --inferred: #a67a14; --unresolved: #c0392b; --unsupported: #737373;
+  --scrim: 251, 251, 250; --on-accent: #fff;
+  --glass: rgba(255, 255, 255, .55); --glass-2: rgba(255, 255, 255, .7); --glass-3: rgba(255, 255, 255, .85);
+  color-scheme: light;
 }
