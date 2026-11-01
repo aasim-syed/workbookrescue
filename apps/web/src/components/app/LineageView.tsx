@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { FlaskConical, Link2, X, Footprints } from "lucide-react";
+import { FlaskConical, Footprints, Link2, Table2, X } from "lucide-react";
 import { toast } from "sonner";
-import { cellRef, fmtValue, projectApi, useFiles, useGraph, useOutputs, useProjectMutation, type GNode } from "@/lib/api";
+import { cellRef, fmtValue, type OpenCell, projectApi, useFiles, useGraph, useOutputs, useProjectMutation, type GNode } from "@/lib/api";
 import StatusLabel from "@/components/StatusLabel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,9 +13,10 @@ import LineageGraph from "./LineageGraph";
 export interface Prefill { filename?: string; sheet?: string; address?: string }
 
 export default function LineageView({
-  projectId, onDeclare, onTest,
+  projectId, onDeclare, onTest, onOpen,
 }: {
   projectId: string;
+  onOpen: OpenCell;
   onDeclare: (p: Prefill) => void;
   onTest: (p: Prefill) => void;
 }) {
@@ -70,7 +71,7 @@ export default function LineageView({
           <>
             <LineageGraph graph={g} selected={selected} onSelect={setSelected} />
             {g.truncated && <p className="absolute bottom-3 left-12 rounded bg-card px-2 py-1 text-xs text-muted-foreground shadow">Large ranges are shown as one node.</p>}
-            {node && <Inspector key={node.id} projectId={projectId} node={node} onClose={() => setSelected(null)} onDeclare={onDeclare} onTest={onTest} />}
+            {node && <Inspector key={node.id} projectId={projectId} node={node} onClose={() => setSelected(null)} onDeclare={onDeclare} onTest={onTest} onOpen={onOpen} />}
           </>
         )}
       </div>
@@ -86,7 +87,7 @@ function Legend() {
   );
 }
 
-function Inspector({ projectId, node, onClose, onDeclare, onTest }: { projectId: string; node: GNode; onClose: () => void; onDeclare: (p: Prefill) => void; onTest: (p: Prefill) => void }) {
+function Inspector({ projectId, node, onClose, onDeclare, onTest, onOpen }: { projectId: string; node: GNode; onClose: () => void; onDeclare: (p: Prefill) => void; onTest: (p: Prefill) => void; onOpen: OpenCell }) {
   const files = useFiles(projectId);
   const [target, setTarget] = useState<string>();
   const map = useProjectMutation(projectId, (v: { sourceFilename: string; target: string; resolvedFilename: string }) => projectApi.map(projectId, { ...v, reason: "Linked from lineage view" }));
@@ -134,6 +135,11 @@ function Inspector({ projectId, node, onClose, onDeclare, onTest }: { projectId:
           </div>
         )}
 
+        {(isCell || node.kind === "range") && node.artifactId && (
+          <Button size="sm" variant="secondary" className="w-full" onClick={() => onOpen({ filename: node.filename, sheet: node.sheet, address: node.address, artifactId: node.artifactId! })}>
+            <Table2 /> Open in sheet
+          </Button>
+        )}
         {isCell && (
           <div className="flex gap-2 border-t pt-3">
             <Button size="sm" variant="outline" className="flex-1" onClick={() => onDeclare(loc)}><Footprints /> Handoff here</Button>

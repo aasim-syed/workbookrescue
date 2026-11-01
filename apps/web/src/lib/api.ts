@@ -33,6 +33,15 @@ export interface Baseline {
 }
 export interface AuditEvent { id: string; actorEmail: string; action: string; summary: string; createdAt: string }
 
+export interface SheetData {
+  file: { id: string; filename: string; format: string; version: number; sheets: { name: string; hidden: boolean }[]; externalLinks: { index: number; target: string }[] };
+  versions: { id: string; version: number }[];
+  cells: { sheet: string; address: string; formula: string | null; cached: number | string | boolean | null }[];
+}
+/** Points at a place in a file. Any view that shows a cell can hand one of these to the sheet viewer. */
+export interface CellRef { filename: string; sheet?: string; address?: string; artifactId?: string }
+export type OpenCell = (ref: CellRef) => void;
+
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) {
     super(message);
@@ -65,6 +74,8 @@ export const useGraph = (id: string, o?: { artifactId: string; sheet: string; ad
     queryKey: ["graph", id, o?.artifactId, o?.sheet, o?.address],
     queryFn: () => api<{ graph: Graph | null }>("GET", `${P(id)}/graph${o ? `?artifactId=${o.artifactId}&sheet=${encodeURIComponent(o.sheet)}&address=${o.address}` : ""}`).then((r) => r.graph),
   });
+export const useSheet = (id: string, artifactId?: string) =>
+  useQuery({ queryKey: ["sheet", id, artifactId], enabled: !!artifactId, queryFn: () => api<SheetData>("GET", `${P(id)}/files/${artifactId}/cells`) });
 export const useSteps = (id: string) => useQuery({ queryKey: ["steps", id], queryFn: () => api<{ steps: Step[] }>("GET", `${P(id)}/steps`).then((r) => r.steps) });
 export const useBaselines = (id: string) => useQuery({ queryKey: ["baselines", id], queryFn: () => api<{ baselines: Baseline[] }>("GET", `${P(id)}/baselines`).then((r) => r.baselines) });
 export const useAudit = (id: string) => useQuery({ queryKey: ["audit", id], queryFn: () => api<{ events: AuditEvent[] }>("GET", `${P(id)}/audit`).then((r) => r.events) });

@@ -19,6 +19,11 @@ export async function putOriginal(key: string, bytes: Uint8Array, contentType: s
 export const downloadUrl = (key: string, filename: string) =>
   getSignedUrl(s3(), new GetObjectCommand({ Bucket: BUCKET, Key: key, ResponseContentDisposition: `attachment; filename="${filename.replace(/"/g, "")}"` }), { expiresIn: 300 });
 
+export async function getOriginal(key: string): Promise<Uint8Array> {
+  const res = await s3().send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
+  return res.Body!.transformToByteArray();
+}
+
 export async function deleteOriginal(key: string) {
   await s3().send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
 }

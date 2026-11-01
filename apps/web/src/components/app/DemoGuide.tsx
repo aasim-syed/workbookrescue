@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, ChevronDown, Circle, Loader2 } from "lucide-react";
+import { Check, ChevronDown, Circle, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { projectApi, useBaselines, useFiles, useProjectMutation, useSteps, type Unknown } from "@/lib/api";
+import { type OpenCell, projectApi, useBaselines, useFiles, useProjectMutation, useSteps, type Unknown } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { stepDraftFrom, type StepDraft } from "./StepsView";
@@ -10,9 +10,11 @@ import type { Prefill } from "./LineageView";
 
 /** A short checklist for the walkthrough project. Every item is derived from real data, so it can't drift from what the app did. */
 export default function DemoGuide({
-  projectId, unknowns, onStep, onBaseline, goTab,
+  projectId, unknowns, onStep, onBaseline, goTab, onOpen, viewed,
 }: {
   projectId: string;
+  onOpen: OpenCell;
+  viewed: boolean;
   unknowns: Unknown[];
   onStep: (d: StepDraft) => void;
   onBaseline: (p: Prefill) => void;
@@ -29,6 +31,13 @@ export default function DemoGuide({
   const run = useProjectMutation(projectId, () => projectApi.runBaseline(projectId, baselines[0].id));
 
   const items = [
+    {
+      title: "Look inside the quote workbook",
+      hint: "This is the real file the customer sees. Click the total to see its formula.",
+      done: viewed,
+      action: "Open customer_quote.xlsx", busy: false,
+      run: () => onOpen({ filename: "customer_quote.xlsx", sheet: "Quote", address: "G24" }),
+    },
     {
       title: "The shipping workbook is missing",
       hint: "The quote links to it, but it isn't imported. Add it and the link resolves.",
@@ -74,6 +83,9 @@ export default function DemoGuide({
       </button>
       {open && (
         <div className="space-y-1 border-t p-2">
+          <button className="flex w-full items-center gap-1.5 px-2 pb-1 text-xs text-muted-foreground hover:text-foreground" onClick={() => (window.location.href = `/api/projects/${projectId}/files.zip`)}>
+            <Download className="size-3" /> Download these workbooks as .xlsx
+          </button>
           {items.map((it, i) => (
             <div key={it.title} className={cn("rounded-md px-2 py-1.5", i === current && "bg-accent")}>
               <div className="flex items-start gap-2 text-sm">

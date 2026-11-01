@@ -1,7 +1,7 @@
 import { DragEvent, useRef, useState } from "react";
-import { AlertTriangle, Download, FileSpreadsheet, FileText, Loader2, MoreHorizontal, Trash2, UploadCloud } from "lucide-react";
+import { AlertTriangle, Download, Eye, FileSpreadsheet, FileText, Loader2, MoreHorizontal, Trash2, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
-import { ApiError, projectApi, useFiles, useProjectMutation } from "@/lib/api";
+import { ApiError, type OpenCell, projectApi, useFiles, useProjectMutation } from "@/lib/api";
 import { formatDistanceToNowStrict } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -52,7 +52,7 @@ export function Dropzone({ projectId, compact }: { projectId: string; compact?: 
   );
 }
 
-export default function FilesView({ projectId }: { projectId: string }) {
+export default function FilesView({ projectId, onOpen }: { projectId: string; onOpen: OpenCell }) {
   const files = useFiles(projectId);
   const del = useProjectMutation(projectId, (id: string) => projectApi.deleteFile(projectId, id));
   const rows = files.data?.files ?? [];
@@ -62,6 +62,14 @@ export default function FilesView({ projectId }: { projectId: string }) {
   return (
     <div className="mx-auto h-full max-w-4xl space-y-5 overflow-auto p-4">
       <Dropzone projectId={projectId} compact={latest.length > 0} />
+      {latest.length > 0 && (
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">{latest.length} file{latest.length > 1 ? "s" : ""}. Click one to open it here.</span>
+          <Button size="sm" variant="outline" onClick={() => (window.location.href = `/api/projects/${projectId}/files.zip`)}>
+            <Download /> Download all (.zip)
+          </Button>
+        </div>
+      )}
       {latest.length > 0 && (
         <div className="rounded-lg border">
           <Table>
@@ -81,10 +89,10 @@ export default function FilesView({ projectId }: { projectId: string }) {
                 return (
                   <TableRow key={f.id}>
                     <TableCell>
-                      <div className="flex items-center gap-2 font-medium">
+                      <button className="flex items-center gap-2 font-medium hover:underline" onClick={() => onOpen({ filename: f.filename, artifactId: f.id })}>
                         {f.format === "csv" ? <FileText className="size-4 text-muted-foreground" /> : <FileSpreadsheet className="size-4 text-muted-foreground" />}
                         {f.filename}
-                      </div>
+                      </button>
                       <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">{f.sha256.slice(0, 12)}</div>
                     </TableCell>
                     <TableCell>
@@ -116,8 +124,11 @@ export default function FilesView({ projectId }: { projectId: string }) {
                           <Button variant="ghost" size="icon" className="size-8" aria-label="File actions"><MoreHorizontal /></Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem disabled={!f.hasOriginal} onClick={() => (window.location.href = `/api/projects/${projectId}/files/${f.id}/download`)}>
-                            <Download /> Download original
+                          <DropdownMenuItem onClick={() => onOpen({ filename: f.filename, artifactId: f.id })}>
+                            <Eye /> View
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => (window.location.href = `/api/projects/${projectId}/files/${f.id}/download`)}>
+                            <Download /> Download
                           </DropdownMenuItem>
                           <DropdownMenuItem variant="destructive" onClick={() => confirm(`Delete ${f.filename} v${f.version}?`) && del.mutate(f.id)}>
                             <Trash2 /> Delete this version

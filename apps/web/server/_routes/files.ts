@@ -7,10 +7,12 @@ import { body, project, type Env } from "../_lib/http.js";
 import { parseUpload, sha256 } from "../_lib/core/parse.js";
 import { LIMITS } from "../_lib/core/types.js";
 import { ingest } from "../_lib/ingest.js";
-import { deleteOriginal, downloadUrl, storageEnabled } from "../_lib/storage.js";
+import { zipSync } from "fflate";
+import { deleteOriginal, downloadUrl, getOriginal, storageEnabled } from "../_lib/storage.js";
+import { rebuildFile } from "../_lib/rebuild.js";
 import { allArtifacts, audit, latestArtifacts, loadContext, touchProject } from "../_lib/store.js";
 
-const { artifacts, mappings } = schema;
+const { artifacts, mappings, cells } = schema;
 const app = new Hono<Env>();
 
 app.get("/:projectId/files", async (c) => {
@@ -47,14 +49,45 @@ app.delete("/:projectId/files/:artifactId", async (c) => {
   return c.json({ ok: true });
 });
 
-/** Redirects to a short-lived signed URL for the original file in Neon Object Storage. */
+/** Cells of one file version, for the in-app sheet viewer. */
+app.get("/:projectId/files/:artifactId/cells", async (c) => {
+  const { db, p } = await project(c);
+  const [a] = await db.select().from(artifacts).where(and(eq(artifacts.id, c.req.param("artifactId")), eq(artifacts.projectId, p.id)));
+  if (!a) throw new HTTPException(404, { message: "File not found" });
+  const rows = await db.select({ sheet: cells.sheet, address: cells.address, formula: cells.formula, cached: cells.cached }).from(cells).where(eq(cells.artifactId, a.id));
+  const versions = (await db.select({ id: artifacts.id, version: artifacts.version }).from(artifacts).where(and(eq(artifacts.projectId, p.id), eq(artifacts.filename, a.filename)))).sort((x, y) => y.version - x.version);
+  return c.json({ file: { id: a.id, filename: a.filename, format: a.format, version: a.version, sheets: a.sheets, externalLinks: a.externalLinks }, versions, cells: rows });
+});
+
+/** The original from Neon Object Storage when we have it (signed URL), otherwise a file rebuilt from the imported cells. */
 app.get("/:projectId/files/:artifactId/download", async (c) => {
   const { db, p, user } = await project(c);
   const [a] = await db.select().from(artifacts).where(and(eq(artifacts.id, c.req.param("artifactId")), eq(artifacts.projectId, p.id)));
   if (!a) throw new HTTPException(404, { message: "File not found" });
-  if (!a.storageKey || !storageEnabled()) throw new HTTPException(404, { message: "NO_ORIGINAL: no original file is stored for this version" });
   await audit(db, user, { projectId: p.id, action: "artifact.download", objectType: "artifact", objectId: a.id, summary: `Downloaded ${a.filename} v${a.version}` });
-  return c.redirect(await downloadUrl(a.storageKey, a.filename), 302);
+  if (a.storageKey && storageEnabled()) return c.redirect(await downloadUrl(a.storageKey, a.filename), 302);
+  const rows = await db.select({ sheet: cells.sheet, address: cells.address, formula: cells.formula, cached: cells.cached }).from(cells).where(eq(cells.artifactId, a.id));
+  const out = rebuildFile(a, rows);
+  return c.body(out.bytes as Uint8Array<ArrayBuffer>, 200, { "Content-Type": out.contentType, "Content-Disposition": `attachment; filename="${a.filename.replace(/"/g, "")}"` });
+});
+
+/** Every file in its latest version as one zip: the originals where stored, rebuilt .xlsx/.csv otherwise. */
+app.get("/:projectId/files.zip", async (c) => {
+  const { db, p, user } = await project(c);
+  const latest = await latestArtifacts(db, p.id);
+  if (!latest.length) throw new HTTPException(404, { message: "No files to download" });
+  const entries: Record<string, Uint8Array> = {};
+  for (const a of latest) {
+    if (a.storageKey && storageEnabled()) {
+      entries[a.filename] = await getOriginal(a.storageKey);
+    } else {
+      const rows = await db.select({ sheet: cells.sheet, address: cells.address, formula: cells.formula, cached: cells.cached }).from(cells).where(eq(cells.artifactId, a.id));
+      entries[a.filename] = rebuildFile(a, rows).bytes;
+    }
+  }
+  await audit(db, user, { projectId: p.id, action: "artifact.download", objectType: "project", objectId: p.id, summary: `Downloaded ${latest.length} files as a zip` });
+  const slug = p.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "workbooks";
+  return c.body(zipSync(entries, { level: 0 }) as Uint8Array<ArrayBuffer>, 200, { "Content-Type": "application/zip", "Content-Disposition": `attachment; filename="${slug}.zip"` });
 });
 
 const mapInput = z.object({ sourceFilename: z.string().min(1), target: z.string().min(1), resolvedFilename: z.string().min(1), reason: z.string().max(500).default("") });

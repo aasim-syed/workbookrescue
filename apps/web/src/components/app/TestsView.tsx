@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, FlaskConical, MoreHorizontal, Play, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { fmtValue, projectApi, useBaselines, useOutputs, useProjectMutation, type Baseline, type Run } from "@/lib/api";
+import { fmtValue, type OpenCell, projectApi, useBaselines, useOutputs, useProjectMutation, type Baseline, type Run } from "@/lib/api";
 import { dateTime } from "@/lib/time";
 import StatusLabel from "@/components/StatusLabel";
 import { Button } from "@/components/ui/button";
@@ -94,14 +94,22 @@ export function BaselineDialog({ projectId, open, prefill, onClose }: { projectI
   );
 }
 
-function RunResult({ run }: { run: Run }) {
+function Ref({ r, onOpen }: { r: { filename: string; sheet: string; address: string }; onOpen: OpenCell }) {
+  return (
+    <button className="font-mono hover:underline" onClick={() => onOpen({ filename: r.filename, sheet: r.sheet, address: r.address })}>
+      {r.filename} · {r.sheet}!{r.address}
+    </button>
+  );
+}
+
+function RunResult({ run, onOpen }: { run: Run; onOpen: OpenCell }) {
   return (
     <div className="space-y-2">
       {run.results.map((r) => (
         <div key={r.assertionId} className="rounded-md border bg-background p-3 text-sm">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <StatusLabel status={r.outcome} />
-            <span className="font-mono text-xs">{r.filename} · {r.sheet}!{r.address}</span>
+            <span className="text-xs"><Ref r={r} onOpen={onOpen} /></span>
           </div>
           <div className="mt-1.5 text-xs text-muted-foreground">
             {r.reason}
@@ -112,8 +120,8 @@ function RunResult({ run }: { run: Run }) {
               <div className="mb-1 text-xs font-medium">What changed upstream</div>
               <ul className="space-y-0.5">
                 {r.changedInputs.map((c, i) => (
-                  <li key={i} className="font-mono text-xs">
-                    {c.filename} · {c.sheet}!{c.address}: <span className="text-muted-foreground">{fmtValue(c.was)}</span> → <span style={{ color: "var(--unresolved)" }}>{fmtValue(c.now)}</span>
+                  <li key={i} className="text-xs">
+                    <Ref r={c} onOpen={onOpen} />: <span className="text-muted-foreground">{fmtValue(c.was)}</span> → <span style={{ color: "var(--unresolved)" }}>{fmtValue(c.now)}</span>
                   </li>
                 ))}
               </ul>
@@ -125,7 +133,7 @@ function RunResult({ run }: { run: Run }) {
   );
 }
 
-function BaselineCard({ projectId, b }: { projectId: string; b: Baseline }) {
+function BaselineCard({ projectId, b, onOpen }: { projectId: string; b: Baseline; onOpen: OpenCell }) {
   const [showAll, setShowAll] = useState(false);
   const run = useProjectMutation(projectId, () => projectApi.runBaseline(projectId, b.id));
   const approve = useProjectMutation(projectId, () => projectApi.approveBaseline(projectId, b.id));
@@ -167,7 +175,7 @@ function BaselineCard({ projectId, b }: { projectId: string; b: Baseline }) {
         {last ? (
           <>
             <div className="pt-1 text-xs text-muted-foreground">Last run {dateTime(last.createdAt)}</div>
-            <RunResult run={last} />
+            <RunResult run={last} onOpen={onOpen} />
             {b.runs.length > 1 && (
               <div>
                 <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowAll((s) => !s)}>
@@ -191,7 +199,7 @@ function BaselineCard({ projectId, b }: { projectId: string; b: Baseline }) {
   );
 }
 
-export default function TestsView({ projectId, onNew }: { projectId: string; onNew: () => void }) {
+export default function TestsView({ projectId, onNew, onOpen }: { projectId: string; onNew: () => void; onOpen: OpenCell }) {
   const baselines = useBaselines(projectId);
   const list = baselines.data ?? [];
   return (
@@ -207,7 +215,7 @@ export default function TestsView({ projectId, onNew }: { projectId: string; onN
           <Button className="mt-4" onClick={onNew}><Plus /> Create a baseline</Button>
         </div>
       ) : (
-        list.map((b) => <BaselineCard key={b.id} projectId={projectId} b={b} />)
+        list.map((b) => <BaselineCard key={b.id} projectId={projectId} b={b} onOpen={onOpen} />)
       )}
     </div>
   );

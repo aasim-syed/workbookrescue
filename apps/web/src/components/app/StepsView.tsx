@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ArrowDown, ArrowUp, CheckCircle2, ClipboardPaste, Footprints, MoreHorizontal, Pencil, Plus, Trash2, Undo2, Hand, FileOutput } from "lucide-react";
 import { toast } from "sonner";
-import { projectApi, useFiles, useProjectMutation, useSteps, type Step } from "@/lib/api";
+import { type OpenCell, projectApi, useFiles, useProjectMutation, useSteps, type Step } from "@/lib/api";
 import StatusLabel from "@/components/StatusLabel";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -118,7 +118,7 @@ export function StepDialog({ projectId, draft, onClose }: { projectId: string; d
   );
 }
 
-export default function StepsView({ projectId, onAdd, onEdit }: { projectId: string; onAdd: () => void; onEdit: (s: StepDraft) => void }) {
+export default function StepsView({ projectId, onAdd, onEdit, onOpen }: { projectId: string; onAdd: () => void; onEdit: (s: StepDraft) => void; onOpen: OpenCell }) {
   const steps = useSteps(projectId);
   const edit = useProjectMutation(projectId, (v: { id: string; body: Record<string, unknown> }) => projectApi.editStep(projectId, v.id, v.body));
   const move = useProjectMutation(projectId, (v: { id: string; dir: "up" | "down" }) => projectApi.moveStep(projectId, v.id, v.dir));
@@ -157,7 +157,11 @@ export default function StepsView({ projectId, onAdd, onEdit }: { projectId: str
                   <p className="mt-1 text-sm">{s.instructions}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {s.ownerRole} · {s.evidence}
-                    {s.toFilename && <span className="ml-1 font-mono">→ {s.toFilename}{s.toSheet ? `::${s.toSheet}` : ""}{s.toAddress ? `!${s.toAddress}` : ""}</span>}
+                    {s.toFilename && (
+                      <button className="ml-1 font-mono hover:underline" onClick={() => onOpen({ filename: s.toFilename!, sheet: s.toSheet ?? undefined, address: s.toAddress ?? undefined })}>
+                        → {s.toFilename}{s.toSheet ? `::${s.toSheet}` : ""}{s.toAddress ? `!${s.toAddress}` : ""}
+                      </button>
+                    )}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center">

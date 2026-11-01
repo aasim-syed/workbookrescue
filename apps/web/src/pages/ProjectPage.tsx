@@ -6,10 +6,11 @@ import ActivityView from "@/components/app/ActivityView";
 import DemoGuide from "@/components/app/DemoGuide";
 import FilesView from "@/components/app/FilesView";
 import LineageView, { type Prefill } from "@/components/app/LineageView";
+import SheetViewer from "@/components/app/SheetViewer";
 import StepsView, { StepDialog, stepDraftFrom, type StepDraft } from "@/components/app/StepsView";
 import TestsView, { BaselineDialog } from "@/components/app/TestsView";
 import UnknownsSheet from "@/components/app/UnknownsSheet";
-import { useProject } from "@/lib/api";
+import { type CellRef, useProject } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -27,6 +28,9 @@ export default function ProjectPage() {
   const navigate = useNavigate();
   const project = useProject(id);
   const [unknownsOpen, setUnknownsOpen] = useState(false);
+  const [sheet, setSheet] = useState<CellRef | null>(null);
+  const [viewed, setViewed] = useState(false);
+  const openCell = (r: CellRef) => { setSheet(r); setViewed(true); };
   const [stepDraft, setStepDraft] = useState<StepDraft | null>(null);
   const [baseline, setBaseline] = useState<{ open: boolean; prefill: Prefill | null }>({ open: false, prefill: null });
 
@@ -70,14 +74,14 @@ export default function ProjectPage() {
         </div>
 
         <div className="relative min-h-0 flex-1">
-          {tab === "lineage" && <LineageView projectId={id} onDeclare={(p) => setStepDraft(stepDraftFrom(p))} onTest={(p) => setBaseline({ open: true, prefill: p })} />}
-          {tab === "files" && <FilesView projectId={id} />}
-          {tab === "steps" && <StepsView projectId={id} onAdd={() => setStepDraft(stepDraftFrom({}))} onEdit={setStepDraft} />}
-          {tab === "tests" && <TestsView projectId={id} onNew={() => setBaseline({ open: true, prefill: null })} />}
+          {tab === "lineage" && <LineageView projectId={id} onOpen={openCell} onDeclare={(p) => setStepDraft(stepDraftFrom(p))} onTest={(p) => setBaseline({ open: true, prefill: p })} />}
+          {tab === "files" && <FilesView projectId={id} onOpen={openCell} />}
+          {tab === "steps" && <StepsView projectId={id} onOpen={openCell} onAdd={() => setStepDraft(stepDraftFrom({}))} onEdit={setStepDraft} />}
+          {tab === "tests" && <TestsView projectId={id} onOpen={openCell} onNew={() => setBaseline({ open: true, prefill: null })} />}
           {tab === "activity" && <ActivityView projectId={id} />}
           {project.data?.project.isDemo && (
             <DemoGuide
-              projectId={id} unknowns={unknowns} goTab={goTab}
+              projectId={id} unknowns={unknowns} goTab={goTab} onOpen={openCell} viewed={viewed}
               onStep={(d) => { setStepDraft(d); }}
               onBaseline={(p) => setBaseline({ open: true, prefill: p })}
             />
@@ -85,6 +89,7 @@ export default function ProjectPage() {
         </div>
       </div>
 
+      {sheet && <SheetViewer key={`${sheet.filename}|${sheet.artifactId}|${sheet.sheet}|${sheet.address}`} projectId={id} target={sheet} onClose={() => setSheet(null)} />}
       <UnknownsSheet projectId={id} open={unknownsOpen} onOpenChange={setUnknownsOpen} unknowns={unknowns} />
       <StepDialog projectId={id} draft={stepDraft} onClose={() => setStepDraft(null)} />
       <BaselineDialog projectId={id} open={baseline.open} prefill={baseline.prefill} onClose={() => setBaseline({ open: false, prefill: null })} />
